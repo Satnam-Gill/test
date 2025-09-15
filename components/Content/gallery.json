@@ -1,0 +1,72 @@
+{
+  "metaTitle": "Gallery - Photo Collection",
+  "metaDescription": "Browse our photo gallery collection showcasing our work and projects.",
+  "galleries": [
+    {
+      "id": "projects",
+      "title": "Our Work",
+      "images": [
+        {
+          "id": "p1",
+          "image": "https://ik.imagekit.io/h7rza8886p/Water_Damage_Restoration_servicePage_serviceData_lists_9_imageUrl_Gs3uN0f70.webp?updatedAt=1754304735865",
+          "title": "Project 1"
+        },
+        {
+          "id": "p2",
+          "image": "https://ik.imagekit.io/h7rza8886p/removing-of-mold-from-wall-with-spray-and-brush-2024-10-16-03-40-11-utc.jpg?updatedAt=1754293377495",
+          "title": "Project 2"
+        },
+        {
+          "id": "p3",
+          "image": "https://ik.imagekit.io/h7rza8886p/housekeeper-s-hand-with-glove-cleaning-mold-from-w-2025-02-21-13-10-49-utc.jpg?updatedAt=1754293378492",
+          "title": "Project 3"
+        },
+        {
+          "id": "p4",
+          "image": "https://ik.imagekit.io/h7rza8886p/Water_Damage_Restoration_servicePage_bannerImage_CsnMRj84j.webp?updatedAt=1754291734349",
+          "title": "Project 4"
+        },
+        {
+          "id": "p5",
+          "image": "https://ik.imagekit.io/h7rza8886p/worried-woman-mopping-up-water-from-a-burst-pipe-w-2024-10-19-15-54-13-utc.jpg?updatedAt=1754282943051",
+          "title": "Project 5"
+        },
+        {
+          "id": "p6",
+          "image": "https://ik.imagekit.io/h7rza8886p/close-up-in-an-apartment-cleaner-in-a-yellow-apron-2024-12-02-03-58-00-utc.jpg?updatedAt=1754282943227",
+          "title": "Project 6"
+        },
+        {
+          "id": "p7",
+          "image": "https://ik.imagekit.io/h7rza8886p/hurricane-ian-flooded-houses-in-florida-residentia-2024-12-06-02-39-30-utc.jpg?updatedAt=1754282947147",
+          "title": "Project 7"
+        },
+        {
+          "id": "p8",
+          "image": "https://ik.imagekit.io/h7rza8886p/worker-adjusting-dehumidifier-in-an-apartment-whic-2024-09-22-02-10-22-utc.jpg?updatedAt=1754282947785",
+          "title": "Project 8"
+        },
+        {
+          "id": "p9",
+          "image": "https://ik.imagekit.io/h7rza8886p/Water_Damage_Restoration_servicePage_serviceData_lists_9_imageUrl_Gs3uN0f70.webp?updatedAt=1754304735865",
+          "title": "Project 9"
+        },
+        {
+          "id": "p10",
+          "image": "https://ik.imagekit.io/h7rza8886p/Water_Damage_Restoration_servicePage_serviceData_lists_1_imageUrl_czFF0_kQXU.webp?updatedAt=1754283547900",
+          "title": "Project 10"
+        },
+        {
+          "id": "p11",
+          "image": "https://ik.imagekit.io/h7rza8886p/housekeeper-s-hand-with-glove-cleaning-mold-from-w-2025-02-21-13-10-49-utc.jpg?updatedAt=1754293378492",
+          "title": "Project 11"
+        },
+        {
+          "id": "p12",
+          "image": "https://ik.imagekit.io/h7rza8886p/basement-room-in-apartment-2025-02-10-05-01-41-utc.jpg?updatedAt=1754282948491",
+          "title": "Project 12"
+        }
+      ]
+    }
+  ]
+}

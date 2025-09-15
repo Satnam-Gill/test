@@ -1,78 +1,103 @@
-import  ContactInfo  from '@/components/Content/ContactInfo.json';
-import { headers } from 'next/headers';
 // middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Function to fetch subdomain data from API
-async function getSubdomainData() {
+// --- Helpers ---
+function extractSubdomain(hostname: string): string {
+  // strip port if present
+  const host = (hostname || "").split(":")[0].toLowerCase();
+  const parts = host.split(".");
+
+  // No subdomain cases
+  if (parts.length <= 1) return "";
+
+  // Handle Vercel and similar multi-label dev hosts
+  // example.vercel.app          -> "example"
+  // foo.example.vercel.app      -> "foo"
+  if (host.endsWith(".vercel.app")) {
+    return parts.length >= 3 ? parts[0] : "";
+  }
+
+  // Handle localhost-style multi-tenant dev (foo.localhost)
+  if (host.endsWith(".localhost")) {
+    return parts.length >= 2 ? parts[0] : "";
+  }
+
+  // Handle nip.io / sslip.io style hosts (foo.127.0.0.1.nip.io)
+  if (host.endsWith(".nip.io") || host.endsWith(".sslip.io")) {
+    return parts.length >= 3 ? parts[0] : "";
+  }
+
+  // Generic custom domain:
+  // foo.example.com -> "foo"
+  // example.com     -> ""
+  return parts.length >= 3 ? parts[0] : "";
+}
+
+async function getSubdomainData(request: NextRequest) {
   try {
-  const headersList = headers();
-    const proto: any = headersList.get("x-forwarded-proto") || "http";
-    const host = headersList.get("host");
+    const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "") ?? "http";
+    const host  = request.headers.get("host") ?? request.nextUrl.host;
     const baseUrl = `${proto}://${host}`;
-    const response = await fetch(`${baseUrl}/api/subdomains`, {
-      cache: 'no-store'
-    });
-    const data = await response.json();
-    
+
+    const res = await fetch(`${baseUrl}/api/subdomains`, { cache: "no-store" });
+    const data = await res.json();
+
     if (data && data.subdomains) {
-      // Convert array back to object with slug as key
-      return data.subdomains.reduce((acc: any, item: any) => {
-        if (item.slug) {
-          acc[item.slug] = item;
-        }
+      // Convert array to { [slug]: item }
+      return data.subdomains.reduce((acc: Record<string, any>, item: any) => {
+        if (item?.slug) acc[item.slug] = item;
         return acc;
       }, {});
     }
     return {};
-  } catch (error) {
+  } catch {
     return {};
   }
 }
 
-
+// --- Middleware ---
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
-  
-  // Fetch subdomain data from API
-  const subdomainUrl = await getSubdomainData();
-  const subDomains = Object.keys(subdomainUrl);
-  const allowedSubs = Object.keys(subdomainUrl);
 
-  // Skip Next assets
+  // Skip Next assets & common static files (kept)
   if (
     url.pathname.startsWith("/_next") ||
     url.pathname.startsWith("/static") ||
-    url.pathname.match(/\.(jpg|jpeg|png|gif|svg|ico|webp)$/i)
+    /\.(jpg|jpeg|png|gif|svg|ico|webp|avif)$/i.test(url.pathname)
   ) {
     return NextResponse.next();
   }
 
-
-
-  // 2) Let the main domain serve robots and sitemap normally
-  if (/^\/(robots\.txt|sitemap.xml|blogs\/sitemap\.xml)$/.test(url.pathname)) {
-    const res = NextResponse.next();
-    res.headers.set("x-subdomain", subdomain);
-    return res;
+  // Let root serve robots & sitemaps normally (kept)
+  if (/^\/(robots\.txt|sitemap\.xml|blogs\/sitemap\.xml)$/.test(url.pathname)) {
+    const pass = NextResponse.next();
+    pass.headers.set("x-subdomain", extractSubdomain(hostname));
+    return pass;
   }
 
-  if (!subDomains.includes(subdomain)) {
+  // Determine requested subdomain (now robust across dummy/prod/dev)
+  const subdomain = extractSubdomain(hostname);
+
+  // Fetch allowed / known subdomains (kept)
+  const subdomainMap = await getSubdomainData(request);
+  const allowedSubs = Object.keys(subdomainMap);
+
+  // If not a known subdomain, proceed normally (kept)
+  if (!subdomain || subdomain === "www" || !allowedSubs.includes(subdomain)) {
     return NextResponse.next();
   }
 
-  if (subdomain && subdomain !== "www") {
-    url.pathname = `/${subdomain}${url.pathname}`;
-  }
+  // Rewrite to /:subdomain/* (kept)
+  url.pathname = `/${subdomain}${url.pathname}`;
 
   const response = NextResponse.rewrite(url);
   response.headers.set("x-subdomain", subdomain);
   return response;
 }
 
+// --- Matcher (kept) ---
 export const config = {
   matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

@@ -3,48 +3,67 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // --- Helpers ---
-function extractSubdomain(hostname: string): string {
-  // strip port if present
-  const host = (hostname || "").split(":")[0].toLowerCase();
-  const parts = host.split(".");
+function getProtoAndHost(req: NextRequest) {
+  const proto = (req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "") || "http").toLowerCase();
+  const host  = (req.headers.get("host") || req.nextUrl.host || "").toLowerCase();
+  return { proto, host };
+}
 
-  // No subdomain cases
-  if (parts.length <= 1) return "";
+/**
+ * For Vercel:
+ *   - Base host = last 3 labels (e.g., test-mauve-nu-11.vercel.app)
+ *   - Subdomain exists only if there is an extra label before those 3
+ * For custom domains:
+ *   - Heuristic: base = last 2 labels (example.com); subdomain is any extra left label
+ */
+function splitHost(host: string) {
+  const parts = host.split(":")[0].split(".").filter(Boolean);
+  const isVercel = host.endsWith(".vercel.app");
 
-  // Handle Vercel and similar multi-label dev hosts
-  // example.vercel.app          -> "example"
-  // foo.example.vercel.app      -> "foo"
-  if (host.endsWith(".vercel.app")) {
-    return parts.length >= 3 ? parts[0] : "";
+  if (isVercel) {
+    const baseParts = parts.slice(-3);                  // e.g., ["test-mauve-nu-11","vercel","app"]
+    const leftParts = parts.slice(0, -3);               // e.g., ["fort-mcdowell-az"]
+    const baseHost  = baseParts.join(".");
+    const subdomain = leftParts.length > 0 ? leftParts.join(".") : ""; // allow nested like a.b.test-*.vercel.app
+    return { isVercel: true, baseHost, subdomain };
   }
 
-  // Handle localhost-style multi-tenant dev (foo.localhost)
+  // localhost-style (foo.localhost)
   if (host.endsWith(".localhost")) {
-    return parts.length >= 2 ? parts[0] : "";
+    const baseParts = parts.slice(-2);                  // ["localhost"]
+    const leftParts = parts.slice(0, -2);
+    const baseHost  = baseParts.join(".");
+    const subdomain = leftParts.length > 0 ? leftParts.join(".") : "";
+    return { isVercel: false, baseHost, subdomain };
   }
 
-  // Handle nip.io / sslip.io style hosts (foo.127.0.0.1.nip.io)
+  // nip.io / sslip.io (foo.127.0.0.1.nip.io)
   if (host.endsWith(".nip.io") || host.endsWith(".sslip.io")) {
-    return parts.length >= 3 ? parts[0] : "";
+    const baseParts = parts.slice(-3);                  // ["nip","io"] + IP block before -> keep 3 for safety
+    const leftParts = parts.slice(0, -3);
+    const baseHost  = baseParts.join(".");
+    const subdomain = leftParts.length > 0 ? leftParts.join(".") : "";
+    return { isVercel: false, baseHost, subdomain };
   }
 
-  // Generic custom domain:
-  // foo.example.com -> "foo"
-  // example.com     -> ""
-  return parts.length >= 3 ? parts[0] : "";
+  // Generic custom domain (heuristic): example.com as base; foo.example.com => subdomain=foo
+  const baseParts = parts.slice(-2);
+  const leftParts = parts.slice(0, -2);
+  const baseHost  = baseParts.join(".");
+  const subdomain = leftParts.length > 0 ? leftParts.join(".") : "";
+  return { isVercel: false, baseHost, subdomain };
 }
 
 async function getSubdomainData(request: NextRequest) {
   try {
-    const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "") ?? "http";
-    const host  = request.headers.get("host") ?? request.nextUrl.host;
-    const baseUrl = `${proto}://${host}`;
+    const { proto, host } = getProtoAndHost(request);
+    const { baseHost } = splitHost(host);
+    const baseUrl = `${proto}://${baseHost}`;
 
     const res = await fetch(`${baseUrl}/api/subdomains`, { cache: "no-store" });
     const data = await res.json();
 
-    if (data && data.subdomains) {
-      // Convert array to { [slug]: item }
+    if (data?.subdomains) {
       return data.subdomains.reduce((acc: Record<string, any>, item: any) => {
         if (item?.slug) acc[item.slug] = item;
         return acc;
@@ -59,7 +78,8 @@ async function getSubdomainData(request: NextRequest) {
 // --- Middleware ---
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
-  const hostname = request.headers.get("host") || "";
+  const { host } = getProtoAndHost(request);
+  const { subdomain } = splitHost(host); // << now supports fort-mcdowell-az.test-mauve-nu-11.vercel.app
 
   // Skip Next assets & common static files (kept)
   if (
@@ -73,18 +93,15 @@ export async function middleware(request: NextRequest) {
   // Let root serve robots & sitemaps normally (kept)
   if (/^\/(robots\.txt|sitemap\.xml|blogs\/sitemap\.xml)$/.test(url.pathname)) {
     const pass = NextResponse.next();
-    pass.headers.set("x-subdomain", extractSubdomain(hostname));
+    pass.headers.set("x-subdomain", subdomain || "");
     return pass;
   }
 
-  // Determine requested subdomain (now robust across dummy/prod/dev)
-  const subdomain = extractSubdomain(hostname);
-
-  // Fetch allowed / known subdomains (kept)
+  // Fetch allowed subdomains (kept)
   const subdomainMap = await getSubdomainData(request);
   const allowedSubs = Object.keys(subdomainMap);
 
-  // If not a known subdomain, proceed normally (kept)
+  // If no subdomain or not allowed (or "www"), proceed normally (kept)
   if (!subdomain || subdomain === "www" || !allowedSubs.includes(subdomain)) {
     return NextResponse.next();
   }
